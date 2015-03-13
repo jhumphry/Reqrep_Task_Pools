@@ -20,7 +20,7 @@ with Ada.Text_IO;
 use Ada.Text_IO;
 
 with Reqrep_Task_Pools;
-use all type Reqrep_Task_Pools.Reqrep_Return_Status;
+use all type Reqrep_Task_Pools.Reqrep_Status;
 
 procedure Simple_Example is
 
@@ -40,19 +40,24 @@ procedure Simple_Example is
    package Delay_Task_Pool is new Reqrep_Task_Pools.Task_Pool(Reqrep => Delay_Reqrep,
 							    Number_Workers => 2);
 
-   Result : Delay_Reqrep;
+   Result : Delay_Task_Pool.Reqrep_Job;
 
 begin
    Put_Line("Pushing requests onto the queue.");
    for I in 1..5 loop
-      Delay_Task_Pool.Push(Delay_Reqrep'(ID => I, D => 1.0));
+      Delay_Task_Pool.Push_Job(Delay_Reqrep'(ID => I, D => 1.0));
       Put_Line("Pushed request:" & Integer'Image(I));
    end loop;
+
+   New_Line;
 
    Put_Line("Pulling results off the queue.");
    for I in 1..5 loop
       Result := Delay_Task_Pool.Get_Result;
-      Put_Line("Got response: " & Integer'Image(Result.ID));
+      Put_Line("Got response: " &
+		 Reqrep_Task_Pools.Reqrep_Status'Image(Result.Status) &
+		 " for request ID:"&
+		 Integer'Image(Result.ID));
    end loop;
 
    Delay_Task_Pool.Shutdown;

@@ -15,9 +15,10 @@
 -- OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 -- PERFORMANCE OF THIS SOFTWARE.
 
-with Ada.Containers
-  .Synchronized_Queue_Interfaces, Ada.Containers
-  .Unbounded_Synchronized_Queues;
+with Ada.Containers;
+use all type Ada.Containers.Count_Type;
+
+with Ada.Containers.Doubly_Linked_Lists;
 
 package body Reqrep_Task_Pools is
 
@@ -29,32 +30,67 @@ package body Reqrep_Task_Pools is
 
       function Status (R : Reqrep_Job) return Reqrep_Status is (R.Status);
 
-      package SQI is new Ada.Containers.Synchronized_Queue_Interfaces
+      package Work_Queues is new Ada.Containers.Doubly_Linked_Lists
         (Element_Type => Reqrep_Job);
-      package Work_Queues is new Ada.Containers.Unbounded_Synchronized_Queues
-        (Queue_Interfaces => SQI);
+      use all type Work_Queues.List;
 
-      Input_Queue  : Work_Queues.Queue;
-      Output_Queue : Work_Queues.Queue;
+      protected Queues is
+         procedure Push_Job (R : in Reqrep_Job);
+         procedure Push_Result (R : in Reqrep_Job);
+         entry Get_Job (R : out Reqrep_Job);
+         entry Get_Result (R : out Reqrep_Job);
+      private
+         Input_Queue  : Work_Queues.List;
+         Output_Queue : Work_Queues.List;
+      end Queues;
 
-      procedure Push (R : in Reqrep; Timeout : Duration := Default_Timeout) is
+      protected body Queues is
+
+         procedure Push_Job (R : in Reqrep_Job) is
+         begin
+            Input_Queue.Append (R);
+         end Push_Job;
+
+         procedure Push_Result (R : in Reqrep_Job) is
+         begin
+            Output_Queue.Append (R);
+         end Push_Result;
+
+         entry Get_Job (R : out Reqrep_Job) when Input_Queue.Length > 0 is
+         begin
+            R := Input_Queue.First_Element;
+            Input_Queue.Delete_First;
+         end Get_Job;
+
+         entry Get_Result (R : out Reqrep_Job) when Output_Queue.Length > 0 is
+         begin
+            R := Output_Queue.First_Element;
+            Output_Queue.Delete_First;
+         end Get_Result;
+
+      end Queues;
+
+      procedure Push_Job
+        (R       : in Reqrep;
+         Timeout :    Duration := Default_Timeout)
+      is
       begin
-         Input_Queue.Enqueue
+         Queues.Push_Job
            (Reqrep_Job'
               (R with Status => Ready, Timeout => Timeout, Shutdown => False));
-      end Push;
+      end Push_Job;
 
       function Get_Result return Reqrep_Job is
          R : Reqrep_Job;
       begin
-         Output_Queue.Dequeue (R);
+         Queues.Get_Result (R);
          return R;
       end Get_Result;
 
       function Get_Result return Reqrep is
          R : Reqrep_Job;
       begin
-         Output_Queue.Dequeue (R);
+         Queues.Get_Result (R);
          return Reqrep (R);
       end Get_Result;
 
@@ -68,7 +104,7 @@ package body Reqrep_Task_Pools is
          R : Reqrep_Job;
       begin
          loop
-            Input_Queue.Dequeue (R);
+            Queues.Get_Job (R);
 
             if R.Shutdown then
                exit;
@@ -84,9 +120,6 @@ package body Reqrep_Task_Pools is
 
                   begin
                      R.Status := Execute (Reqrep (R));
-                     if R.Status = Active then
-                        R.Status := Success;
-                     end if;
 
                   exception
                      when Event : others =>
@@ -95,7 +128,7 @@ package body Reqrep_Task_Pools is
 
                end select;
 
-               Output_Queue.Enqueue (R);
+               Queues.Push_Result (R);
             end if;
          end loop;
       end Reqrep_Worker;
@@ -105,7 +138,7 @@ package body Reqrep_Task_Pools is
       procedure Shutdown is
       begin
          for I in Workers'Range loop
-            Input_Queue.Enqueue
+            Queues.Push_Job
               (Reqrep_Job'
                  (Reqrep with
                   Status   => Ready,

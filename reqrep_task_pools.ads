@@ -31,16 +31,18 @@ package Reqrep_Task_Pools is
    package Task_Pool is
       type Reqrep_Job is new Reqrep with private;
       function Status (R : Reqrep_Job) return Reqrep_Status;
-      procedure Push (R : in Reqrep; Timeout : Duration := Default_Timeout);
+      procedure Push_Job
+        (R       : in Reqrep;
+         Timeout :    Duration := Default_Timeout);
       function Get_Result return Reqrep_Job;
       function Get_Result return Reqrep;
       procedure Shutdown;
 
    private
       type Reqrep_Job is new Reqrep with record
-         Status  : Reqrep_Status;
-	 Timeout : Duration;
-	 Shutdown : Boolean := False;
+         Status   : Reqrep_Status;
+         Timeout  : Duration;
+         Shutdown : Boolean := False;
       end record;
    end Task_Pool;
 
