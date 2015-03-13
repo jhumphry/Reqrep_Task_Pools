@@ -36,12 +36,18 @@ package body Reqrep_Task_Pools is
 
       protected Queues is
          procedure Push_Job (R : in Reqrep_Job);
-         procedure Push_Result (R : in Reqrep_Job);
+	 entry Push_Result (R : in Reqrep_Job);
+	 entry Push_Exception (R : in Reqrep_Job;
+			E : in Ada.Exceptions.Exception_Occurrence);
          entry Get_Job (R : out Reqrep_Job);
-         entry Get_Result (R : out Reqrep_Job);
+	 entry Get_Result (R : out Reqrep_Job);
+	 entry Get_Exception (E : out Ada.Exceptions.Exception_Occurrence);
+	 procedure Discard_Exception;
       private
-         Input_Queue  : Work_Queues.List;
-         Output_Queue : Work_Queues.List;
+         Input_Queue  : Work_Queues.List := Work_Queues.Empty_List;
+	 Output_Queue : Work_Queues.List := Work_Queues.Empty_List;
+	 Unhandled_Exception : Boolean := False;
+	 Unhandled_Occurrence : Ada.Exceptions.Exception_Occurrence;
       end Queues;
 
       protected body Queues is
@@ -51,10 +57,19 @@ package body Reqrep_Task_Pools is
             Input_Queue.Append (R);
          end Push_Job;
 
-         procedure Push_Result (R : in Reqrep_Job) is
+         entry Push_Result (R : in Reqrep_Job) when not Unhandled_Exception is
          begin
             Output_Queue.Append (R);
-         end Push_Result;
+	 end Push_Result;
+
+	 entry Push_Exception (R : in Reqrep_Job;
+				E : in Ada.Exceptions.Exception_Occurrence)
+	   when not Unhandled_Exception is
+	 begin
+	    Unhandled_Exception := True;
+	    Ada.Exceptions.Save_Occurrence(Unhandled_Occurrence, E);
+            Output_Queue.Append (R);
+	 end Push_Exception;
 
          entry Get_Job (R : out Reqrep_Job) when Input_Queue.Length > 0 is
          begin
@@ -66,7 +81,19 @@ package body Reqrep_Task_Pools is
          begin
             R := Output_Queue.First_Element;
             Output_Queue.Delete_First;
-         end Get_Result;
+	 end Get_Result;
+
+	 entry Get_Exception (E : out Ada.Exceptions.Exception_Occurrence)
+	   when Unhandled_Exception is
+	 begin
+	    Ada.Exceptions.Save_Occurrence(E, Unhandled_Occurrence);
+	    Unhandled_Exception := False;
+	 end Get_Exception;
+
+	 procedure Discard_Exception is
+	 begin
+	    Unhandled_Exception := False;
+	 end Discard_Exception;
 
       end Queues;
 
@@ -93,6 +120,20 @@ package body Reqrep_Task_Pools is
          Queues.Get_Result (R);
          return Reqrep (R);
       end Get_Result;
+
+      procedure Get_Exception(E : out Ada.Exceptions.Exception_Occurrence) is
+      begin
+	 select
+	    Queues.Get_Exception(E);
+	 else
+	    Ada.Exceptions.Save_Occurrence(E, Ada.Exceptions.Null_Occurrence);
+	 end select;
+      end Get_Exception;
+
+      procedure Discard_Exception is
+      begin
+	 Queues.Discard_Exception;
+      end Discard_Exception;
 
       -------------------
       -- Reqrep_Worker --
@@ -123,12 +164,15 @@ package body Reqrep_Task_Pools is
 
                   exception
                      when Event : others =>
-                        R.Status := Unhandled_Exception;
+			R.Status := Unhandled_Exception;
+			Queues.Push_Exception(R, Event);
                   end;
 
                end select;
 
-               Queues.Push_Result (R);
+	       if R.Status /= Unhandled_Exception then
+		  Queues.Push_Result (R);
+	       end if;
             end if;
          end loop;
       end Reqrep_Worker;

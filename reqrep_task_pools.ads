@@ -15,6 +15,8 @@
 -- OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 -- PERFORMANCE OF THIS SOFTWARE.
 
+with Ada.Exceptions;
+
 package Reqrep_Task_Pools is
 
    Default_Timeout : constant Duration := 60.0;
@@ -36,6 +38,8 @@ package Reqrep_Task_Pools is
          Timeout :    Duration := Default_Timeout);
       function Get_Result return Reqrep_Job;
       function Get_Result return Reqrep;
+      procedure Get_Exception(E : out Ada.Exceptions.Exception_Occurrence);
+      procedure Discard_Exception;
       procedure Shutdown;
 
    private
