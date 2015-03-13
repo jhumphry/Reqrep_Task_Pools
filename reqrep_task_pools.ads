@@ -15,7 +15,7 @@
 -- OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 -- PERFORMANCE OF THIS SOFTWARE.
 
-package Reqrep_Task_Pool is
+package Reqrep_Task_Pools is
 
    Default_Timeout : constant Duration := 60.0;
 
@@ -44,4 +44,4 @@ package Reqrep_Task_Pool is
       end record;
    end Task_Pool;
 
-end Reqrep_Task_Pool;
+end Reqrep_Task_Pools;

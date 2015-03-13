@@ -19,7 +19,7 @@ with Ada.Containers
   .Synchronized_Queue_Interfaces, Ada.Containers
   .Unbounded_Synchronized_Queues;
 
-package body Reqrep_Task_Pool is
+package body Reqrep_Task_Pools is
 
    ---------------
    -- Task_Pool --
@@ -116,4 +116,4 @@ package body Reqrep_Task_Pool is
 
    end Task_Pool;
 
-end Reqrep_Task_Pool;
+end Reqrep_Task_Pools;

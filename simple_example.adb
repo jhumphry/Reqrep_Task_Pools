@@ -19,8 +19,8 @@
 with Ada.Text_IO;
 use Ada.Text_IO;
 
-with Reqrep_Task_Pool;
-use Reqrep_Task_Pool;
+with Reqrep_Task_Pools;
+use all type Reqrep_Task_Pools.Reqrep_Return_Status;
 
 procedure Simple_Example is
 
@@ -30,13 +30,14 @@ procedure Simple_Example is
          D : Duration := 1.0;
       end record;
 
-   function Execute(R : in out Delay_Reqrep) return Reqrep_Return_Status is
+   function Execute(R : in out Delay_Reqrep)
+		    return Reqrep_Task_Pools.Reqrep_Return_Status is
    begin
       delay R.D;
       return Success;
    end Execute;
 
-   package Delay_Task_Pool is new Reqrep_Task_Pool.Task_Pool(Reqrep => Delay_Reqrep,
+   package Delay_Task_Pool is new Reqrep_Task_Pools.Task_Pool(Reqrep => Delay_Reqrep,
 							    Number_Workers => 2);
 
    Result : Delay_Reqrep;
