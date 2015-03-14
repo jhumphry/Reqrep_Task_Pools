@@ -34,6 +34,10 @@ package body Reqrep_Task_Pools is
         (Element_Type => Reqrep_Job);
       use all type Work_Queues.List;
 
+      ------------
+      -- Queues --
+      ------------
+
       protected Queues is
          procedure Push_Job (R : in Reqrep_Job);
 	 entry Push_Result (R : in Reqrep_Job);

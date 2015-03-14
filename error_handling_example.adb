@@ -94,7 +94,8 @@ begin
       if Result.Status = Unhandled_Exception then
          Get_Exception (Unhandled_Exception_Occurrence);
          Put_Line
-           (Ada.Exceptions.Exception_Information (Unhandled_Exception_Occurrence));
+           (Ada.Exceptions.Exception_Information
+              (Unhandled_Exception_Occurrence));
       end if;
 
    end loop;

@@ -15,49 +15,52 @@
 -- OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 -- PERFORMANCE OF THIS SOFTWARE.
 
-
-with Ada.Text_IO;
-use Ada.Text_IO;
+with Ada.Text_IO; use Ada.Text_IO;
 
 with Reqrep_Task_Pools;
 use all type Reqrep_Task_Pools.Reqrep_Status;
 
 procedure Simple_Example is
 
-   type Delay_Reqrep is tagged
-      record
-         ID : Positive := 1;
-         D : Duration := 1.0;
-      end record;
+   type Delay_Reqrep is tagged record
+      ID : Positive := 1;
+      D  : Duration := 1.0;
+   end record;
 
-   function Execute(R : in out Delay_Reqrep)
-		    return Reqrep_Task_Pools.Reqrep_Return_Status is
+   function Execute
+     (R : in out Delay_Reqrep) return Reqrep_Task_Pools.Reqrep_Return_Status
+   is
    begin
       delay R.D;
       return Success;
    end Execute;
 
-   package Delay_Task_Pool is new Reqrep_Task_Pools.Task_Pool(Reqrep => Delay_Reqrep,
-							    Number_Workers => 2);
+   package Delay_Task_Pool is new Reqrep_Task_Pools.Task_Pool
+     (Reqrep         => Delay_Reqrep,
+      Number_Workers => 2);
 
    Result : Delay_Task_Pool.Reqrep_Job;
 
 begin
-   Put_Line("Pushing requests onto the queue.");
-   for I in 1..5 loop
-      Delay_Task_Pool.Push_Job(Delay_Reqrep'(ID => I, D => 1.0));
-      Put_Line("Pushed request:" & Integer'Image(I));
+   Put_Line ("A simple example of Request-Response handling.");
+   New_Line;
+
+   Put_Line ("Pushing requests onto the queue.");
+   for I in 1 .. 5 loop
+      Delay_Task_Pool.Push_Job (Delay_Reqrep'(ID => I, D => 1.0));
+      Put_Line ("Pushed request:" & Integer'Image (I));
    end loop;
 
    New_Line;
 
-   Put_Line("Pulling results off the queue.");
-   for I in 1..5 loop
+   Put_Line ("Pulling results off the queue.");
+   for I in 1 .. 5 loop
       Result := Delay_Task_Pool.Get_Result;
-      Put_Line("Got response: " &
-		 Reqrep_Task_Pools.Reqrep_Status'Image(Result.Status) &
-		 " for request ID:"&
-		 Integer'Image(Result.ID));
+      Put_Line
+        ("Got response: " &
+         Reqrep_Task_Pools.Reqrep_Status'Image (Result.Status) &
+         " for request ID:" &
+         Integer'Image (Result.ID));
    end loop;
 
    Delay_Task_Pool.Shutdown;
