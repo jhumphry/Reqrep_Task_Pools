@@ -60,7 +60,11 @@ begin
         ("Got response: " &
          Reqrep_Task_Pools.Reqrep_Status'Image (Result.Status) &
          " for request ID:" &
-         Integer'Image (Result.ID));
+	   Integer'Image (Result.ID));
+      if Result.Status = Unhandled_Exception then
+         Delay_Task_Pool.Discard_Exception;
+      end if;
+
    end loop;
 
    Delay_Task_Pool.Shutdown;
