@@ -38,7 +38,8 @@ package Reqrep_Task_Pools is
       procedure Push_Job
         (R       : in Reqrep;
          Timeout :    Duration := Default_Timeout);
-      function Get_Result return Reqrep_Job;
+      function Get_Result return Reqrep_Job
+        with Post => not (Status(Get_Result'Result) in Ready..Active);
       function Get_Result return Reqrep;
       procedure Get_Exception(E : out Ada.Exceptions.Exception_Occurrence);
       procedure Discard_Exception;
