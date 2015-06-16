@@ -105,12 +105,12 @@ queue if there is nothing useful that can be done with the exception
 information.
 
 As a result of the need to freeze the response queue, unhandled
-exceptions may significantly damage performance. It is recommended that
-exceptions should only be propagated where they are truly
-unpredictable. For example, if the task pool is being used to retrieve
-a data from resources on the internet, a network connectivity failure
-is not really unpredictable and the request-response objects should be
-able to indicate this without raising an exception.
+exceptions may damage performance. It is recommended that exceptions
+should only be propagated where they are truly unpredictable. For
+example, if the task pool is being used to retrieve a data from
+resources on the internet, a network connectivity failure is not really
+unpredictable and the request-response objects should be able to
+indicate this without raising an exception.
 
 ## Examples
 

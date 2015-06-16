@@ -22,6 +22,10 @@ use all type Ada.Containers.Count_Type;
 
 with Ada.Containers.Doubly_Linked_Lists;
 
+with Ada.Task_Identification, Ada.Task_Termination;
+use all type Ada.Task_Identification.Task_Id;
+use all type Ada.Task_Termination.Cause_Of_Termination;
+
 package body Reqrep_Task_Pools is
 
    ---------------
@@ -42,18 +46,20 @@ package body Reqrep_Task_Pools is
 
       protected Queues is
          procedure Push_Job (R : in Reqrep_Job);
-	 entry Push_Result (R : in Reqrep_Job);
+	 procedure Push_Result (R : in Reqrep_Job);
 	 entry Push_Exception (R : in Reqrep_Job;
-			E : in Ada.Exceptions.Exception_Occurrence);
+                        E : in Ada.Exceptions.Exception_Occurrence);
          entry Get_Job (R : out Reqrep_Job);
 	 entry Get_Result (R : out Reqrep_Job);
 	 entry Get_Exception (E : out Ada.Exceptions.Exception_Occurrence);
-	 procedure Discard_Exception;
+         procedure Discard_Exception;
+         procedure Initiate_Shutdown;
       private
          Input_Queue  : Work_Queues.List := Work_Queues.Empty_List;
 	 Output_Queue : Work_Queues.List := Work_Queues.Empty_List;
 	 Unhandled_Exception : Boolean := False;
-	 Unhandled_Occurrence : Ada.Exceptions.Exception_Occurrence;
+         Unhandled_Occurrence : Ada.Exceptions.Exception_Occurrence;
+         In_Shutdown : Boolean := False;
       end Queues;
 
       protected body Queues is
@@ -63,13 +69,13 @@ package body Reqrep_Task_Pools is
             Input_Queue.Append (R);
          end Push_Job;
 
-         entry Push_Result (R : in Reqrep_Job) when not Unhandled_Exception is
+         procedure Push_Result (R : in Reqrep_Job) is
          begin
             Output_Queue.Append (R);
 	 end Push_Result;
 
 	 entry Push_Exception (R : in Reqrep_Job;
-				E : in Ada.Exceptions.Exception_Occurrence)
+                        E : in Ada.Exceptions.Exception_Occurrence)
 	   when not Unhandled_Exception is
 	 begin
 	    Unhandled_Exception := True;
@@ -77,10 +83,14 @@ package body Reqrep_Task_Pools is
             Output_Queue.Append (R);
 	 end Push_Exception;
 
-         entry Get_Job (R : out Reqrep_Job) when Input_Queue.Length > 0 is
+         entry Get_Job (R : out Reqrep_Job) when In_Shutdown or Input_Queue.Length > 0 is
          begin
-            R := Input_Queue.First_Element;
-            Input_Queue.Delete_First;
+            if In_Shutdown then
+               R := Reqrep_Job'(Shutdown => True, others => <>);
+            else
+               R := Input_Queue.First_Element;
+               Input_Queue.Delete_First;
+            end if;
          end Get_Job;
 
          entry Get_Result (R : out Reqrep_Job) when Output_Queue.Length > 0 is
@@ -92,14 +102,19 @@ package body Reqrep_Task_Pools is
 	 entry Get_Exception (E : out Ada.Exceptions.Exception_Occurrence)
 	   when Unhandled_Exception is
 	 begin
-	    Ada.Exceptions.Save_Occurrence(E, Unhandled_Occurrence);
+            Ada.Exceptions.Save_Occurrence(E, Unhandled_Occurrence);
 	    Unhandled_Exception := False;
 	 end Get_Exception;
 
 	 procedure Discard_Exception is
 	 begin
 	    Unhandled_Exception := False;
-	 end Discard_Exception;
+         end Discard_Exception;
+
+         procedure Initiate_Shutdown is
+         begin
+            In_Shutdown := True;
+         end Initiate_Shutdown;
 
       end Queues;
 
@@ -141,15 +156,23 @@ package body Reqrep_Task_Pools is
 	 Queues.Discard_Exception;
       end Discard_Exception;
 
+      procedure Shutdown is
+      begin
+         Queues.Initiate_Shutdown;
+      end Shutdown;
+
       -------------------
       -- Reqrep_Worker --
       -------------------
 
-      task type Reqrep_Worker;
+      task type Reqrep_Worker is
+         entry Start;
+      end;
 
       task body Reqrep_Worker is
          R : Reqrep_Job;
       begin
+         accept Start;
          loop
             Queues.Get_Job (R);
 
@@ -169,34 +192,69 @@ package body Reqrep_Task_Pools is
                      R.Status := Execute (Reqrep (R));
 
                   exception
+                     when Event : Inject_Worker_Crash =>
+                        raise;
                      when Event : others =>
-			R.Status := Unhandled_Exception;
-			Queues.Push_Exception(R, Event);
+                        R.Status := Unhandled_Exception;
+                        Queues.Push_Exception(R, Event);
                   end;
 
                end select;
 
-	       if R.Status /= Unhandled_Exception then
-		  Queues.Push_Result (R);
-	       end if;
+               if R.Status /= Unhandled_Exception then
+                  Queues.Push_Result (R);
+               end if;
             end if;
+
          end loop;
       end Reqrep_Worker;
 
-      Workers : array (Positive range 1 .. Number_Workers) of Reqrep_Worker;
+      Workers : array (Positive range 1 .. Number_Workers) of access Reqrep_Worker;
 
-      procedure Shutdown is
+      function Active_Workers return Natural is
+         Result : Natural := 0;
       begin
          for I in Workers'Range loop
-            Queues.Push_Job
-              (Reqrep_Job'
-                 (Reqrep with
-                  Status   => Ready,
-                  Timeout  => Default_Timeout,
-                  Shutdown => True));
+            if not Ada.Task_Identification.Is_Terminated(Workers(I)'Identity) then
+               Result := Result + 1;
+            end if;
          end loop;
-      end Shutdown;
+         return Result;
+      end Active_Workers;
 
+      protected body Termination_Handler is
+
+         procedure Handle_Termination(Cause : in Ada.Task_Termination.Cause_Of_Termination;
+                                      T : in Ada.Task_Identification.Task_Id;
+                                      X : in Ada.Exceptions.Exception_Occurrence) is
+         begin
+            case Cause is
+               when Normal =>
+                  null;
+               when Abnormal =>
+                  Queues.Push_Result(Reqrep_Job'(Status => Internal_Error, others => <>));
+
+               when Unhandled_Exception =>
+                  select
+                     Queues.Push_Exception(Reqrep_Job'(Status => Internal_Error, others => <>),
+                                           X);
+                  else
+                     Queues.Push_Result(Reqrep_Job'(Status => Internal_Error, others => <>));
+                  end select;
+            end case;
+
+         end Handle_Termination;
+
+      end Termination_Handler;
+
+   begin
+      for I in Workers'Range loop
+         Workers(I) := new Reqrep_Worker;
+         Ada.Task_Termination.Set_Specific_Handler(Workers(I).all'Identity,
+                                                   Termination_Handler_Access);
+         Workers(I).Start;
+      end loop;
    end Task_Pool;
+
 
 end Reqrep_Task_Pools;

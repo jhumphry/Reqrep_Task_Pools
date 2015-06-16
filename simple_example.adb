@@ -19,6 +19,9 @@ with Ada.Text_IO; use Ada.Text_IO;
 
 with Reqrep_Task_Pools;
 use all type Reqrep_Task_Pools.Reqrep_Status;
+with Ada.Task_Termination;
+with Ada.Task_Identification;
+with Ada.Exceptions;
 
 procedure Simple_Example is
 
@@ -61,7 +64,7 @@ begin
          Reqrep_Task_Pools.Reqrep_Status'Image (Result.Status) &
          " for request ID:" &
 	   Integer'Image (Result.ID));
-      if Result.Status = Unhandled_Exception then
+      if Result.Status = Unhandled_Exception or Result.Status = Internal_Error then
          Delay_Task_Pool.Discard_Exception;
       end if;
 
